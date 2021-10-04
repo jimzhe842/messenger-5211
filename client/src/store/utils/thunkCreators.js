@@ -93,10 +93,10 @@ const sendMessage = (data, body) => {
 
 // message format to send: {recipientId, text, conversationId}
 // conversationId will be set to null if its a brand new conversation
-export const postMessage = (body) => (dispatch) => {
+export const postMessage = (body) => async (dispatch) => {
   try {
-    const data = saveMessage(body);
-
+    let data = saveMessage(body);
+    data = await data;
     if (!body.conversationId) {
       dispatch(addConversation(body.recipientId, data.message));
     } else {
