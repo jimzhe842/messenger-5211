@@ -4,7 +4,11 @@ import {
   addSearchedUsersToStore,
   removeOfflineUserFromStore,
   addMessageToStore,
+  setNewActiveConvo,
+  setNewMessageRead
 } from "./utils/reducerFunctions";
+import { sortConversations } from "./utils/sortConversations";
+import { findLastSentMessage } from "./utils/findLastSentMessage";
 
 // ACTIONS
 
@@ -15,6 +19,8 @@ const REMOVE_OFFLINE_USER = "REMOVE_OFFLINE_USER";
 const SET_SEARCHED_USERS = "SET_SEARCHED_USERS";
 const CLEAR_SEARCHED_USERS = "CLEAR_SEARCHED_USERS";
 const ADD_CONVERSATION = "ADD_CONVERSATION";
+const SET_ACTIVE_CONVERSATION = "SET_ACTIVE_CONVERSATION";
+const SET_MESSAGE_READ = "SET_MESSAGE_READ";
 
 // ACTION CREATORS
 
@@ -59,6 +65,20 @@ export const clearSearchedUsers = () => {
   };
 };
 
+export const setActiveConversation = (convoId) => {
+  return {
+    type: SET_ACTIVE_CONVERSATION,
+    payload: { convoId }
+  }
+}
+
+export const setMessageRead = (convoId, messageId) => {
+  return {
+    type: SET_MESSAGE_READ,
+    payload: { convoId, messageId }
+  }
+}
+
 // add new conversation when sending a new message
 export const addConversation = (recipientId, newMessage) => {
   return {
@@ -74,21 +94,20 @@ const reducer = (state = [], action) => {
     case GET_CONVERSATIONS:
       action.conversations.forEach((conversation) => {
         conversation.unread = 0;
+        conversation.active = false;
+
+        // for convenience since the server doesn't track read messages, set the lastRead to most recent message
+        const otherId = conversation.otherUser.id;
+        const lastReadId = (findLastSentMessage(conversation, otherId)).id;
+
+        conversation.lastReadId = lastReadId;
       });
-      action.conversations.sort(({messages: a}, {messages: b}) => {
-        a = a[a.length - 1].createdAt;
-        b = b[b.length - 1].createdAt;
-        if (a > b) {
-          return -1;
-        } else if (a < b) {
-          return 1;
-        } else {
-          return 0;
-        }
-      })
+      sortConversations(action.conversations);
       return action.conversations;
     case SET_MESSAGE:
-      return addMessageToStore(state, action.payload);
+      const newState = addMessageToStore(state, action.payload);
+      sortConversations(newState);
+      return newState;
     case ADD_ONLINE_USER: {
       return addOnlineUserToStore(state, action.id);
     }
@@ -105,6 +124,17 @@ const reducer = (state = [], action) => {
         action.payload.recipientId,
         action.payload.newMessage
       );
+    case SET_ACTIVE_CONVERSATION:
+      return setNewActiveConvo(
+        state,
+        action.payload.convoId
+      )
+    case SET_MESSAGE_READ:
+      return setNewMessageRead(
+        state,
+        action.payload.convoId,
+        action.payload.messageId
+      )
     default:
       return state;
   }

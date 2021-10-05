@@ -1,3 +1,6 @@
+import socket from "../../socket";
+import { findLastReceivedMessage } from "./findLastReceivedMessage";
+
 export const addMessageToStore = (state, payload) => {
   const { message, sender } = payload;
   // if sender isn't null, that means the message needs to be put in a brand new convo
@@ -17,7 +20,19 @@ export const addMessageToStore = (state, payload) => {
       const newConvo = {...convo};
       newConvo.messages = [...convo.messages, message];
       newConvo.latestMessageText = message.text;
-      newConvo.unread++;
+      if (convo.active) {
+        newConvo.unread = 0;
+      } else {
+        newConvo.unread++;
+      }
+      // if the other person sent it, tell them we read their message
+      if (convo.active && convo.otherUser.id === message.senderId) {
+        socket.emit("message-read", {
+          senderId: message.senderId,
+          convoId: convo.id,
+          messageId: message.id
+        });
+      }
       return newConvo;
     } else {
       return convo;
@@ -72,12 +87,48 @@ export const addSearchedUsersToStore = (state, users) => {
 export const addNewConvoToStore = (state, recipientId, message) => {
   return state.map((convo) => {
     if (convo.otherUser.id === recipientId) {
-      convo.id = message.conversationId;
-      convo.messages.push(message);
-      convo.latestMessageText = message.text;
-      return convo;
+      const newConvo = {...convo};
+      newConvo.id = message.conversationId;
+      newConvo.messages.push(message);
+      newConvo.latestMessageText = message.text;
+      return newConvo;
     } else {
       return convo;
     }
   });
 };
+
+
+export const setNewActiveConvo = (state, convoId) => {
+  const newState = state.map((convo) => {
+    if (convo.id === convoId) {
+      if (convo.unread > 0) {
+        const message = findLastReceivedMessage(convo, convo.otherUser.id);
+        socket.emit("message-read", {
+          senderId: message.senderId,
+          convoId: convo.id,
+          messageId: message.id
+        });
+      }
+      const newConvo = {...convo, active: true, unread: 0};
+      return newConvo;
+    } else {
+      const newConvo = {...convo, active: false};
+      return newConvo;
+    }
+  });
+  return newState;
+}
+
+export const setNewMessageRead = (state, convoId, messageId) => {
+  const newState = state.map((convo) => {
+    // check to make sure the new message read comes after the previous id
+    if (convo.id === convoId && convo.lastReadId < messageId) {
+      const newConvo = {...convo, lastReadId: messageId};
+      return newConvo;
+    } else {
+      return convo;
+    }
+  });
+  return newState;
+}
