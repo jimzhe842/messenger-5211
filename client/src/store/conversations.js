@@ -72,6 +72,20 @@ export const addConversation = (recipientId, newMessage) => {
 const reducer = (state = [], action) => {
   switch (action.type) {
     case GET_CONVERSATIONS:
+      action.conversations.forEach((conversation) => {
+        conversation.unread = 0;
+      });
+      action.conversations.sort(({messages: a}, {messages: b}) => {
+        a = a[a.length - 1].createdAt;
+        b = b[b.length - 1].createdAt;
+        if (a > b) {
+          return -1;
+        } else if (a < b) {
+          return 1;
+        } else {
+          return 0;
+        }
+      })
       return action.conversations;
     case SET_MESSAGE:
       return addMessageToStore(state, action.payload);
